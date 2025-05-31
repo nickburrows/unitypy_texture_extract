@@ -41,6 +41,20 @@ def handle_error(error):
         'details': error_traceback if app.debug else None
     }), 500
 
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({
+        'success': False,
+        'message': f'檔案太大，不能超過 {app.config["MAX_FILE_SIZE"]}MB',
+    }), 413
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({
+        'success': False,
+        'message': '找不到請求的資源',
+    }), 404
+
 # 檔案大小限制
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB
 app.config['MAX_FILE_SIZE'] = 500  # MB

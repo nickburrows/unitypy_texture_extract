@@ -144,24 +144,62 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
         }
         
         .loading-spinner {
-            border: 5px solid var(--border-color);
-            border-top: 5px solid var(--primary-color);
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
         }
         
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress {
+            width: 0%;
+            height: 100%;
+            background-color: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+
+        .notifications {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .notification {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--primary-color);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: none;
+        }
+        
+        .notification.success {
+            border-left-color: var(--success-color);
+        }
+        
+        .notification.error {
+            border-left-color: #f44336;
         }
         .modal {
             display: none;
@@ -235,9 +273,19 @@
                onkeypress="return event.charCode >= 48 && event.charCode <= 57">
         <span class="search-info">目前顯示: <span id="visibleCount">0</span> / <span id="totalCount">0</span></span>
     </div>
-    
+
+    <!-- 添加通知容器 -->
+    <div id="notifications" class="notifications"></div>
+
+    <!-- 添加載入提示 -->
     <div id="loadingOverlay" class="loading-overlay">
-        <div class="loading-spinner"></div>
+        <div class="loading-spinner">
+            <h3 id="loadingText">處理中...</h3>
+            <div class="progress-bar">
+                <div id="progress" class="progress"></div>
+            </div>
+            <p id="loadingDetail">正在上傳圖片</p>
+        </div>
     </div>
 
     <table class="texture-table">
@@ -369,6 +417,84 @@
 
         // 為搜尋輸入框添加事件監聽器
         document.getElementById('pathIdSearch').addEventListener('input', filterTable);
+
+        // 顯示通知
+        function showNotification(message, type = 'info') {
+            const notifications = document.getElementById('notifications');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            notification.style.display = 'block';
+            notifications.appendChild(notification);
+
+            // 3秒後自動隱藏
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // 更新載入狀態
+        function updateLoadingStatus(text, detail, progress) {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingDetail').textContent = detail;
+            document.getElementById('progress').style.width = `${progress}%`;
+        }
+
+        // 處理圖片替換
+        function handleFileSelect(input, pathId) {
+            const file = input.files[0];
+            if (!file) {
+                showNotification('請選擇要替換的圖片', 'error');
+                return;
+            }
+
+            if (!file.type.startsWith('image/')) {
+                showNotification('請選擇圖片檔案', 'error');
+                return;
+            }
+
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'block';
+            updateLoadingStatus('準備上傳', '正在處理圖片...', 0);
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('path_id', pathId);
+
+            // 開始上傳
+            updateLoadingStatus('上傳中', '正在上傳圖片...', 30);
+
+            fetch('/replace_texture', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                overlay.style.display = 'none';
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    updateThumbnail(pathId); // 如果需要，更新縮圖
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                overlay.style.display = 'none';
+                showNotification('上傳圖片時發生錯誤', 'error');
+                console.error('Error:', error);
+            });
+        }
+
+        // 更新縮圖（如果需要的話）
+        function updateThumbnail(pathId) {
+            const thumbnail = document.querySelector(`img[data-path-id="${pathId}"]`);
+            if (thumbnail) {
+                const timestamp = new Date().getTime();
+                const currentSrc = thumbnail.src.split('?')[0];
+                thumbnail.src = `${currentSrc}?t=${timestamp}`;
+            }
+        }
     </script>
 </body>
 </html>
