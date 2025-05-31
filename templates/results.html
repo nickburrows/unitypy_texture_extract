@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>紋理列表</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --border-color: #ddd;
+            --header-bg: #f5f5f5;
+            --primary-color: #2196F3;
+            --success-color: #4CAF50;
+            --hover-color: #1976D2;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --border-color: #444;
+            --header-bg: #2d2d2d;
+            --primary-color: #64B5F6;
+            --success-color: #81C784;
+            --hover-color: #42A5F5;
+        }
+
+        body { 
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--primary-color);
+            color: var(--bg-color);
+        }
+
+        .home-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 2px solid var(--primary-color);
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        .home-link:hover {
+            background: var(--primary-color);
+            color: var(--bg-color);
+        }
+
+        .search-container {
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .search-input {
+            padding: 8px 12px;
+            font-size: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            width: 200px;
+            transition: border-color 0.3s;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        .search-input:focus {
+            border-color: #2196F3;
+            outline: none;
+        }
+        .search-info {
+            color: #666;
+        }
+        .sort-icon {
+            cursor: pointer;
+            user-select: none;
+            padding: 0 5px;
+        }
+        .sort-icon:hover {
+            color: #2196F3;
+        }
+        .texture-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .texture-table th, 
+        .texture-table td {
+            padding: 2px 4px;
+            border: 1px solid var(--border-color);
+            text-align: left;
+            line-height: 1;
+            font-size: 14px;
+        }
+        .texture-table th {
+            background-color: var(--header-bg);
+            color: var(--text-color);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            padding: 6px 4px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .thumbnail {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            cursor: pointer;
+            transition: transform 0.2s;
+            vertical-align: middle;
+        }
+        .thumbnail:hover {
+            transform: scale(1.1);
+        }
+        
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .loading-spinner {
+            border: 5px solid var(--border-color);
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
+            z-index: 1000;
+        }
+        .modal-content {
+            margin: auto;
+            display: block;
+            max-width: 90%;
+            max-height: 90%;
+            position: relative;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        #downloadButton {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #downloadButton:hover {
+            background-color: #45a049;
+        }
+        .replace-button {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .replace-button:hover {
+            background-color: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>提取的紋理</h1>
+        <div>
+            <a href="/" class="home-link">重新上傳</a>
+            <button id="themeToggle" class="theme-toggle" onclick="toggleTheme()">切換深色模式</button>
+        </div>
+    </div>
+    
+    <div class="search-container">
+        <input type="number" 
+               id="searchInput" 
+               class="search-input" 
+               placeholder="輸入 Path ID 搜尋..."
+               onkeypress="return event.charCode >= 48 && event.charCode <= 57">
+        <span class="search-info">目前顯示: <span id="visibleCount">0</span> / <span id="totalCount">0</span></span>
+    </div>
+    
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <table class="texture-table">
+        <thead>
+            <tr>
+                <th>預覽圖</th>
+                <th>Path ID <span class="sort-icon" onclick="sortTable()">⇅</span></th>
+                <th>名稱</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="textureList">
+            {% for file in files %}
+            <tr data-path-id="{{ file.path_id }}">
+                <td>
+                    <img class="thumbnail" 
+                         src="{{ url_for('view_file', filename=file.path) }}" 
+                         alt="{{ file.name }}"
+                         onclick="showModal(this.src)">
+                </td>
+                <td>{{ file.path_id }}</td>
+                <td>{{ file.name }}</td>
+                <td>
+                    <input type="file" 
+                           id="replace_{{ file.path_id }}"
+                           accept="image/*" 
+                           style="display: none"
+                           onchange="handleFileSelect(this, {{ file.path_id }})">
+                    <button class="replace-button"
+                            onclick="document.getElementById('replace_{{ file.path_id }}').click()">
+                        上傳圖片
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div id="imageModal" class="modal" onclick="hideModal()">
+        <span class="modal-close">&times;</span>
+        <img class="modal-content" id="modalImage">
+    </div>
+
+    <button id="downloadButton" onclick="downloadModified()">下載修改後的檔案</button>
+
+    <script>
+        function updateVisibleCount() {
+            const visibleRows = document.querySelectorAll('.texture-table tbody tr:not([style*="display: none"])').length;
+            const totalRows = document.querySelectorAll('.texture-table tbody tr').length;
+            document.getElementById('visibleCount').textContent = visibleRows;
+            document.getElementById('totalCount').textContent = totalRows;
+        }
+
+        function filterTable() {
+            const searchInput = document.getElementById('searchInput');
+            const searchTerm = searchInput.value.trim();
+            const rows = document.querySelectorAll('.texture-table tbody tr');
+            
+            rows.forEach(row => {
+                const pathIdCell = row.querySelector('td:nth-child(2)'); // 第二列是 Path ID
+                const pathId = pathIdCell.textContent.trim();
+                row.style.display = (searchTerm === '' || pathId === searchTerm) ? '' : 'none';
+            });
+            
+            updateVisibleCount();
+        }
+
+        // 頁面載入時初始化計數
+        document.addEventListener('DOMContentLoaded', function() {
+            updateVisibleCount();
+            document.getElementById('searchInput').addEventListener('input', filterTable);
+        });
+
+                let sortAscending = true;
+        function sortTable() {
+            const tbody = document.querySelector('.texture-table tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            rows.sort((a, b) => {
+                const aPathId = parseInt(a.querySelector('td:nth-child(2)').textContent.trim());
+                const bPathId = parseInt(b.querySelector('td:nth-child(2)').textContent.trim());
+                return sortAscending ? aPathId - bPathId : bPathId - aPathId;
+            });
+            
+            sortAscending = !sortAscending;
+            rows.forEach(row => tbody.appendChild(row));
+            updateVisibleCount();
+        }
+
+        function showLoading() {
+            document.querySelector('.loading-overlay').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.querySelector('.loading-overlay').style.display = 'none';
+        }
+
+        // 主題切換功能
+        document.querySelector('.theme-toggle').addEventListener('click', function() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+
+        // 在頁面載入時應用已保存的主題
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        });
+
+        // 圖片預覽功能
+        document.querySelectorAll('.thumbnail').forEach(img => {
+            img.addEventListener('click', function() {
+                showLoading();
+                const modal = document.querySelector('.modal');
+                const modalImg = document.querySelector('.modal-content');
+                modal.style.display = "block";
+                modalImg.src = this.src;
+                hideLoading();
+            });
+        });
+
+        // 關閉預覽
+        document.querySelector('.modal-close').addEventListener('click', function() {
+            document.querySelector('.modal').style.display = "none";
+        });
+
+        // 為搜尋輸入框添加事件監聽器
+        document.getElementById('pathIdSearch').addEventListener('input', filterTable);
+    </script>
+</body>
+</html>
