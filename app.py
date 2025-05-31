@@ -399,6 +399,10 @@ def before_request():
     if request.endpoint != 'static':
         cleanup_temp_files()
 
+@app.route('/favicon.ico')
+def favicon():
+    return send_file(os.path.join(app.root_path, 'static', 'favicon.ico'), mimetype='image/vnd.microsoft.icon')
+
 if __name__ == '__main__':
     # 啟動時清理臨時檔案
     cleanup_temp_files()
