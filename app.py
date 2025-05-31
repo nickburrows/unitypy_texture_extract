@@ -9,7 +9,25 @@ from pathlib import Path
 import traceback
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'  # 用於 flash 訊息
+
+# 配置設定
+def configure_app(app):
+    """配置 Flask 應用程式的設定"""
+    # 檢查是否在生產環境中運行
+    if os.environ.get('FLASK_ENV') == 'production':
+        if 'FLASK_SECRET_KEY' not in os.environ:
+            raise RuntimeError(
+                '錯誤：在生產環境中必須設定 FLASK_SECRET_KEY 環境變數！\n'
+                '您可以使用以下指令生成一個：\n'
+                'python3 -c "import os; print(os.urandom(24).hex())"'
+            )
+        app.secret_key = os.environ['FLASK_SECRET_KEY']
+    else:
+        # 在開發環境中使用隨機金鑰
+        app.secret_key = os.environ.get('FLASK_SECRET_KEY') or os.urandom(24)
+        app.logger.warning('警告：使用臨時的隨機 secret key，這只適合開發環境！')
+
+configure_app(app)
 
 # 錯誤處理裝飾器
 @app.errorhandler(Exception)
@@ -384,4 +402,19 @@ def before_request():
 if __name__ == '__main__':
     # 啟動時清理臨時檔案
     cleanup_temp_files()
-    app.run(debug=True)
+    
+    # 設定是否為開發環境
+    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    
+    # 在生產環境中禁用除錯模式
+    if not debug_mode:
+        app.debug = False
+        # 設定生產環境的 host 和 port
+        host = os.environ.get('FLASK_HOST', '0.0.0.0')
+        port = int(os.environ.get('FLASK_PORT', 5001))
+    else:
+        app.debug = True
+        host = 'localhost'
+        port = 5000
+    
+    app.run(host=host, port=port)
