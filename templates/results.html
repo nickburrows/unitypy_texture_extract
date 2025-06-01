@@ -316,7 +316,7 @@
                            onchange="handleFileSelect(this, {{ file.path_id }})">
                     <button class="replace-button"
                             onclick="document.getElementById('replace_{{ file.path_id }}').click()">
-                        上傳圖片
+                        替換圖片
                     </button>
                 </td>
             </tr>
@@ -419,19 +419,53 @@
         document.getElementById('pathIdSearch').addEventListener('input', filterTable);
 
         // 顯示通知
-        function showNotification(message, type = 'info') {
-            const notifications = document.getElementById('notifications');
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            notification.style.display = 'block';
-            notifications.appendChild(notification);
-
-            // 3秒後自動隱藏
-            setTimeout(() => {
-                notification.style.opacity = '0';
-                setTimeout(() => notification.remove(), 300);
-            }, 3000);
+        function showNotification(message, type = 'info', autoHide = false) {
+            const overlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
+            const loadingDetail = document.getElementById('loadingDetail');
+            const progress = document.getElementById('progress');
+            const spinner = document.querySelector('.loading-spinner');
+            
+            // 確保關閉按鈕存在
+            let closeButton = spinner.querySelector('.close-button');
+            if (!closeButton) {
+                closeButton = document.createElement('button');
+                closeButton.className = 'close-button';
+                closeButton.style.marginTop = '10px';
+                closeButton.style.padding = '5px 15px';
+                closeButton.style.border = 'none';
+                closeButton.style.borderRadius = '4px';
+                closeButton.style.backgroundColor = '#2196F3';
+                closeButton.style.color = 'white';
+                closeButton.style.cursor = 'pointer';
+                closeButton.textContent = '關閉';
+                closeButton.onclick = () => {
+                    overlay.style.display = 'none';
+                    progress.style.backgroundColor = '';
+                    progress.style.width = '0%';
+                };
+                spinner.appendChild(closeButton);
+            }
+            
+            // 設置訊息
+            loadingText.textContent = type === 'error' ? '錯誤' : type === 'success' ? '成功' : '提示';
+            loadingDetail.textContent = message;
+            progress.style.width = '100%';
+            progress.style.backgroundColor = type === 'error' ? '#f44336' : type === 'success' ? '#4CAF50' : '#2196F3';
+            
+            // 顯示對話框
+            overlay.style.display = 'block';
+            closeButton.style.display = 'block';
+            
+            // 如果設置了自動隱藏
+            if (autoHide) {
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    progress.style.backgroundColor = '';
+                    progress.style.width = '0%';
+                }, 2000);
+                closeButton.style.display = 'none';
+            }
         }
 
         // 更新載入狀態
@@ -471,12 +505,11 @@
             })
             .then(response => response.json())
             .then(data => {
-                overlay.style.display = 'none';
                 if (data.success) {
-                    showNotification(data.message, 'success');
+                    showNotification(data.message, 'success', false);
                     updateThumbnail(pathId); // 如果需要，更新縮圖
                 } else {
-                    showNotification(data.message, 'error');
+                    showNotification(data.message, 'error', false);
                 }
             })
             .catch(error => {
@@ -494,6 +527,72 @@
                 const currentSrc = thumbnail.src.split('?')[0];
                 thumbnail.src = `${currentSrc}?t=${timestamp}`;
             }
+        }
+
+        function downloadModified() {
+            // 顯示載入提示
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'block';
+            updateLoadingStatus('準備下載', '正在打包修改後的檔案...', 30);
+
+            // 發送下載請求
+            fetch('/download_modified', {
+                method: 'GET',
+            })
+            .then(async response => {
+                // 先檢查是否有錯誤回應
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || errorData.message || '下載失敗');
+                }
+                
+                if (!response.ok) {
+                    throw new Error('下載請求失敗');
+                }
+                
+                // 獲取檔案名稱
+                let filename = 'modified_asset.assets';
+                const disposition = response.headers.get('content-disposition');
+                if (disposition && disposition.includes('filename=')) {
+                    const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+                    if (filenameMatch && filenameMatch[1]) {
+                        filename = filenameMatch[1];
+                    }
+                }
+                
+                // 獲取檔案大小
+                const contentLength = response.headers.get('content-length');
+                if (contentLength) {
+                    console.log(`檔案大小: ${contentLength} bytes`);
+                }
+                
+                return response.blob().then(blob => ({blob, filename}));
+            })
+            .then(({blob, filename}) => {
+                console.log(`準備下載檔案: ${filename}, 大小: ${blob.size} bytes`);
+                // 創建下載連結
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = filename;
+                
+                // 觸發下載
+                document.body.appendChild(a);
+                a.click();
+                
+                // 清理
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                showNotification('下載成功！', 'success', false);
+            })
+            .catch(error => {
+                console.error('下載錯誤:', error);
+                overlay.style.display = 'none';
+                showNotification('下載失敗，請稍後再試', 'error');
+            });
         }
     </script>
 </body>
