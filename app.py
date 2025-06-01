@@ -32,11 +32,6 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 OUTPUT_FOLDER = os.path.join(BASE_DIR, 'extracted')
 MODIFIED_FOLDER = os.path.join(BASE_DIR, 'modified')
 
-# 建立必要的檔案夾
-for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER, MODIFIED_FOLDER]:
-    os.makedirs(folder, exist_ok=True)
-    os.makedirs(os.path.join(folder, 'temp'), exist_ok=True)
-
 class AssetHandler:
     def __init__(self):
         self.original_file = None
@@ -205,11 +200,35 @@ asset_handler = AssetHandler()
 
 @app.route('/')
 def index():
+    # 清空暫存檔案夾
+    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
+        temp_folder = Path(folder)
+        for temp_file in temp_folder.iterdir():
+            if temp_file.is_file():
+                temp_file.unlink()
+            elif temp_file.is_dir():
+                shutil.rmtree(temp_file)
+
+    # 確保必要的資料夾結構存在
+    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
+        temp_folder = Path(folder) / 'temp'
+        temp_folder.mkdir(parents=True, exist_ok=True)
+
+    # 重置 AssetHandler 狀態
+    global asset_handler
+    asset_handler.original_file = None
+    asset_handler.modified_file = None
+    asset_handler.unity_env = None
+
     return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
     try:
+        # 確保上傳資料夾存在
+        Path(UPLOAD_FOLDER).mkdir(parents=True, exist_ok=True)
+        Path(os.path.join(UPLOAD_FOLDER, 'temp')).mkdir(parents=True, exist_ok=True)
+
         if 'file' not in request.files:
             flash('沒有上傳檔案', 'error')
             return redirect(url_for('index'))
@@ -255,23 +274,27 @@ def view_file(filename):
 
 @app.route('/replace_texture', methods=['POST'])
 def handle_texture_replace():
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'message': '沒有上傳檔案'}), 400
-    
-    path_id = request.form.get('path_id')
-    if not path_id:
-        return jsonify({'success': False, 'message': '未指定 Path ID'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'success': False, 'message': '未選擇檔案'}), 400
-    
-    if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-        return jsonify({'success': False, 'message': '請選擇圖片檔案'}), 400
-    
     try:
+        # 確保臨時資料夾存在
+        temp_folder = Path(os.path.join(UPLOAD_FOLDER, 'temp'))
+        temp_folder.mkdir(parents=True, exist_ok=True)
+
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': '沒有上傳檔案'}), 400
+        
+        path_id = request.form.get('path_id')
+        if not path_id:
+            return jsonify({'success': False, 'message': '未指定 Path ID'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': '未選擇檔案'}), 400
+        
+        if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+            return jsonify({'success': False, 'message': '請選擇圖片檔案'}), 400
+        
         # 儲存上傳的圖片到臨時檔案
-        temp_path = os.path.join(UPLOAD_FOLDER, 'temp', secure_filename(file.filename))
+        temp_path = os.path.join(temp_folder, secure_filename(file.filename))
         file.save(temp_path)
         
         # 替換紋理
